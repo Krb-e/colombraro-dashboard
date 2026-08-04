@@ -1001,10 +1001,22 @@ a:hover .ig-thumb-na{background:rgba(255,112,10,.1);}
 
       /* Stories del período. La preview apunta a media_backup_url (copia en Supabase
          Storage) y no al CDN de Instagram, que caduca a las 24 h. */
-      const stInRange=(stories||[]).filter(p=>{const d=new Date(p.date_published);return !isNaN(d)&&d>=_pf&&d<=_pt;});
+      /* Las stories expiran a las 24 h. El resto del dashboard corta en AYER porque el dia
+         en curso esta incompleto y ensuciaria los deltas, pero con ese criterio la story de
+         hoy recien apareceria manana, ya vencida en Instagram. Por eso este bloque -- y solo
+         este -- se estira hasta el final del dia de hoy.
+         La extension se aplica unicamente si el periodo elegido es el actual (termina ayer u
+         hoy). Si el usuario mira "Mes anterior", no se cuela la story de hoy. */
+      const _hoy0=new Date(); _hoy0.setHours(0,0,0,0);
+      const _ayer0=new Date(_hoy0); _ayer0.setDate(_ayer0.getDate()-1);
+      const _finHoy=new Date(_hoy0); _finHoy.setHours(23,59,59,999);
+      const _esPeriodoActual=_pt>=_ayer0;
+      const _ptSt=_esPeriodoActual?_finHoy:_pt;
+      const stInRange=(stories||[]).filter(p=>{const d=new Date(p.date_published);return !isNaN(d)&&d>=_pf&&d<=_ptSt;});
       stInRange.sort((a,b)=>new Date(b.date_published)-new Date(a.date_published));
+      const _stHoy=stInRange.filter(p=>{const d=new Date(p.date_published);return d>=_hoy0;}).length;
       igSet('ig-storycount',igInt(stInRange.length));
-      igSet('ig-stat-stories',stInRange.length+' en el período');
+      igSet('ig-stat-stories',stInRange.length+' en el período'+(_esPeriodoActual&&_stHoy?' · incluye hoy':''));
       const stTipo={STORY:'Story',IMAGE:'Imagen',VIDEO:'Video'};
       const stRows=stInRange.map(p=>{
         const sth=p.media_backup_url?('<img class="ig-thumb" src="'+igEsc(p.media_backup_url)+'" loading="lazy" alt="Preview de la story" onerror="this.style.visibility=&#39;hidden&#39;">'):'<div class="ig-thumb"></div>';
