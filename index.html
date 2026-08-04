@@ -358,6 +358,7 @@ table.ke-t tfoot td:first-child{text-align:left;}
     <div class="ke-kc"><div class="ke-kl">Seguidores</div><div class="ke-kv" id="ig-followers">—</div><div class="ke-ks" id="ig-ks-followers">Total de la cuenta</div></div>
     <div class="ke-kc g"><div class="ke-kl">Seguidores netos</div><div class="ke-kv g" id="ig-netfoll">—</div><div class="ke-ks" id="ig-ks-netfoll">En el período</div></div>
     <div class="ke-kc b"><div class="ke-kl">Publicaciones en feed</div><div class="ke-kv b" id="ig-postcount">—</div><div class="ke-ks" id="ig-ks-postcount">En el período seleccionado</div></div>
+    <div class="ke-kc p"><div class="ke-kl">Stories publicadas</div><div class="ke-kv p" id="ig-storycount">—</div><div class="ke-ks" id="ig-ks-storycount">En el período seleccionado</div></div>
   </div>
 
   <!-- Bloque 0 — Rendimiento diario -->
@@ -419,6 +420,18 @@ table.ke-t tfoot td:first-child{text-align:left;}
           <th>Me gusta</th><th>Coment.</th><th>Guardados</th><th>Compart.</th><th>Nuevos seg.</th>
         </tr></thead>
         <tbody id="ig-tbody"><tr><td colspan="12" class="ke-pg-sub">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bloque 4 — Stories (Graph API, preview re-hosteada en Supabase Storage) -->
+  <div class="ke-sec-head"><div class="ke-sec-line b"></div><span class="ke-sec-label">Stories · período seleccionado</span><span class="ke-sec-pill ke-pill-orange" id="ig-stat-stories">—</span></div>
+  <div class="ke-block">
+    <div class="ke-block-top"></div>
+    <div style="overflow:auto;max-height:600px">
+      <table class="ke-t ig-t">
+        <thead><tr><th>Preview</th><th>Fecha</th><th>Tipo</th><th class="acc">Alcance</th><th class="acc">Views</th><th class="acc">Interac.</th><th>Respuestas</th></tr></thead>
+        <tbody id="ig-stbody"><tr><td colspan="7" class="ke-pg-sub">Cargando…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -897,11 +910,12 @@ a:hover .ig-thumb-na{background:rgba(255,112,10,.1);}
   function igKs(id,cur,prev,fb){ const e=document.getElementById(id); if(!e)return; const dh=(prev==null||prev===false||prev===undefined)?null:igDelta(cur,prev); e.innerHTML=dh||fb; }
   async function igLoad(){
     try{
-      const [life,daily,posts,demo]=await Promise.all([
+      const [life,daily,posts,demo,stories]=await Promise.all([
         igGet(T('account_lifetime'),'fecha,username,followers,media_count,follows'),
         igGet(T('account_daily'),'fecha,account_reach,account_views,account_total_interactions,account_profile_views,account_website_clicks'),
         igGet(T('posts_media'),'thumbnail_url,permalink,date_published,media_product_type,caption,reach,views,total_interactions,likes,comments,saved,shares,follows_from_post'),
-        igGet(T('demographics'),'age,gender,follower_demographics_count')
+        igGet(T('demographics'),'age,gender,follower_demographics_count'),
+        igGet(T('stories'),'media_id,media_type,date_published,permalink,reach,views,total_interactions,replies,media_backup_url')
       ]);
       const LP=igPick(life), DP=igPick(daily);
       const L=LP.cur||{}, Lp=LP.prev, D=DP.cur||{}, Dp=DP.prev;
@@ -984,6 +998,24 @@ a:hover .ig-thumb-na{background:rgba(255,112,10,.1);}
       window.igRenderPosts=renderPosts;
       renderPosts();
       igSet('ig-postcount',igInt(monthly.length));
+
+      /* Stories del período. La preview apunta a media_backup_url (copia en Supabase
+         Storage) y no al CDN de Instagram, que caduca a las 24 h. */
+      const stInRange=(stories||[]).filter(p=>{const d=new Date(p.date_published);return !isNaN(d)&&d>=_pf&&d<=_pt;});
+      stInRange.sort((a,b)=>new Date(b.date_published)-new Date(a.date_published));
+      igSet('ig-storycount',igInt(stInRange.length));
+      igSet('ig-stat-stories',stInRange.length+' en el período');
+      const stTipo={STORY:'Story',IMAGE:'Imagen',VIDEO:'Video'};
+      const stRows=stInRange.map(p=>{
+        const sth=p.media_backup_url?('<img class="ig-thumb" src="'+igEsc(p.media_backup_url)+'" loading="lazy" alt="Preview de la story" onerror="this.style.visibility=&#39;hidden&#39;">'):'<div class="ig-thumb"></div>';
+        const sprev=p.media_backup_url?('<a href="'+igEsc(p.media_backup_url)+'" target="_blank" rel="noopener" title="Ver imagen respaldada">'+sth+'</a>'):sth;
+        return '<tr><td>'+sprev+'</td><td>'+fdate(p.date_published)+'</td>'
+          +'<td><span class="ke-chip ke-c-neutral">'+igEsc(stTipo[p.media_type]||p.media_type||'Story')+'</span></td>'
+          +'<td>'+igInt(p.reach)+'</td><td>'+igInt(p.views)+'</td><td>'+igInt(p.total_interactions)+'</td>'
+          +'<td>'+igInt(p.replies)+'</td></tr>';
+      }).join('');
+      const stb=document.getElementById('ig-stbody');
+      if(stb) stb.innerHTML=stRows||'<tr><td colspan="7" class="ke-pg-sub">Sin stories registradas en el período (se capturan desde el 04/08 en adelante).</td></tr>';
 
 
       const ages=['13-17','18-24','25-34','35-44','45-54','55-64','65+'];
