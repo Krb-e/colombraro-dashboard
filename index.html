@@ -1562,7 +1562,7 @@ a:hover .ig-thumb-na{background:rgba(255,112,10,.1);}
   async function mlRange(table,cols,dateCol,from,to){
     let out=[],off=0;const pg=1000;
     for(;;){
-      const url=SUPABASE_URL+'/rest/v1/'+table+'?select='+cols+'&'+dateCol+'=gte.'+from+'&'+dateCol+'=lte.'+to+'&order='+dateCol+'.asc&limit='+pg+'&offset='+off;
+      const url=SUPABASE_URL+'/rest/v1/'+table+'?select='+cols+'&'+dateCol+'=gte.'+from+'&'+dateCol+'=lte.'+to+'&order='+dateCol+'.asc,id.asc&limit='+pg+'&offset='+off;
       const r=await fetch(url,{headers:HDRS()});
       if(!r.ok){console.warn('[KE] '+table+' '+r.status+' — fuente ignorada');return out;}
       const rows=await r.json(); out=out.concat(rows);
